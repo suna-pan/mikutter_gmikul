@@ -107,11 +107,11 @@ Plugin.create(:mikutter_gmikul) do
         begin  
             config = YAML.load_file(File.join(File.dirname(__FILE__),"config.yaml"))
             $gmikul = Gmikul.new(config["gmail"]["addr"],config["gmail"]["pass"])
-        $lasttime = DateTime.now  - UserConfig[:gmikul_days].to_i
-        count = $gmikul.haveUnread($lasttime)
-        announce(maketext(count))
-        mail = $gmikul.getFromSub($lasttime)
-        pushMailbox(mail)
+            $lasttime = DateTime.now  - UserConfig[:gmikul_days].to_i
+            count = $gmikul.haveUnread($lasttime)
+            announce(maketext(count))
+            mail = $gmikul.getFromSub($lasttime)
+            pushMailbox(mail)
         rescue
             announce("アカウント情報が間違っているのかもー＞＜")
         end
@@ -130,6 +130,8 @@ Plugin.create(:mikutter_gmikul) do
             unless mail.empty? then
                 announce(maketext(count))
                 pushMailbox(mail)
+            else
+                timeline(:mailbox).clear
             end
             sleep 1
             autoUpdate
