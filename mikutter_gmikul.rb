@@ -45,7 +45,7 @@ class Gmikul
     end
 
     #ログアウト    
-    def exit
+    def logout
     @gmail.primary.logout
     end
 end
@@ -104,7 +104,6 @@ Plugin.create(:mikutter_gmikul) do
     on_boot do 
         UserConfig[:gmikul_interval] ||= 180
         UserConfig[:gmikul_days] ||= 1 
-        config = YAML.load_file(File.join(File.dirname(__FILE__),"config.yaml"))
         begin  
             config = YAML.load_file(File.join(File.dirname(__FILE__),"config.yaml"))
             $gmikul = Gmikul.new(config["gmail"]["addr"],config["gmail"]["pass"])
