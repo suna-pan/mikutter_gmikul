@@ -6,6 +6,7 @@ depends:
   - gtk
   - settings
   - gui
+  - command
 version: '1.0'
 author: suna_pan
 name: Gmikul
