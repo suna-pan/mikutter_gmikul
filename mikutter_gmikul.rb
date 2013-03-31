@@ -9,6 +9,8 @@ class Gmikul
     #コンストラクタ
     def initialize(addr,pass)
         @gmail = Gmail.new(addr,pass)
+        @mail = Array.new
+        @id = -10000
     end
 
     #未読メールはおるか？
@@ -23,35 +25,77 @@ class Gmikul
         end
     end
 
-    #未読メールの差出人と件名を取得
+    #既に取得したものかどうかを返す
+    #取得済み => true 未取得 => false
+    def isAlreadyGet(message_id)
+        res = false
+        @mail.each do |h|
+            res |= h.value?(message_id)
+        end
+        return res
+    end
+
+    #メールをの差出人を返す
+    def getFrom(mes)
+        begin
+            s_from = mes.from[0]
+            from = s_from.name == nil ? "#{s_from.mailbox}#{s_from.host}" : s_from.name
+        rescue
+            from = nil
+        end
+        return from
+    end
+
+    #メールの件名を返す
+    def getSub(mes)
+        begin
+            subject = mes.subject.toutf8
+        rescue
+            subject = nil
+        end
+        return subject
+    end
+
+    #メールの本文を返す
+    def getBody(mes)
+        begin
+            body = mes.text_part.decoded
+        rescue
+            body = nil
+        end
+        return body
+    end
+
     # Messageの配列を返す
-    def getFromSub(lasttime,incbody)
-        mail = Array.new
+    def genMessage(lasttime,incbody)
         @gmail.inbox.emails(:unread, :after => lasttime).map do |mes|
-            begin
-                s_from = mes.from[0]
-                from = (s_from.name == nil ? "#{s_from.mailbox}#{s_from.host}" : s_from.name) + "さんから"
-            rescue
-                from = ''
-            end
-            begin
-                subject = "「#{mes.subject.toutf8}」という件名の"
-            rescue
-                subject = ''
-            end
-            text = "#{from}#{subject}メールが届いていますよ。"
+            #既に取得済みなら次へ
+            next if isAlreadyGet(mes.message_id)
+            #文章を生成
+            text = String.new
+            text << (self.getFrom(mes) == nil ? '' : "#{self.getFrom(mes)}さんから")
+            text << (self.getSub(mes) == nil ? '' : "「#{self.getSub(mes)}」という件名の")
+            text << "メールが届いていますよ。"
+            #本文の表示が有効の場合
             if incbody
-                begin
-                    body = "#{mes.text_part.decoded}"
-                    text << "\n[本文]\n#{body}"
-                rescue
-                    text << "\n **本文を表示できません**"
-                end
+                text << (self.getBody(mes) == nil ? "\n **本文を表示できません**" : "\n[本文]\n#{self.getBody(mes)}")
             end
             mes.mark(:unread)
-            mail << Message.new(:message => text, :system => true)
+            n_mail = Message.new(:message => text, :system => true)
+            n_mail[:user] = User.new(
+                                :id     => @id,
+                                :idname => "Gmikul",
+                                :name   => "mikuttter_Gmikul" ,
+                                :profile_image_url => MUI::Skin.get("icon.png"))
+            @mail << {post: n_mail, id: mes.message_id} 
+            @id -= 1              
         end
-        return mail
+    
+        mesary = Array.new
+        @mail.each do |h|
+            mesary << h[:post]
+        end
+        return mesary
     end
 
     #ログアウト    
@@ -99,7 +143,7 @@ Plugin.create(:mikutter_gmikul) do
         if buf.text =~ /^@gmikul/ then
             count = $gmikul.haveUnread($lasttime)
             announce(maketext(count))
-            mail = $gmikul.getFromSub($lasttime,UserConfig[:gmikul_body])
+            mail = $gmikul.genMessage($lasttime,UserConfig[:gmikul_body])
             pushMailbox(mail)
             clearBox(buf)
         end
@@ -121,7 +165,7 @@ Plugin.create(:mikutter_gmikul) do
             $lasttime = DateTime.now  - UserConfig[:gmikul_days].to_i
             count = $gmikul.haveUnread($lasttime)
             announce(maketext(count))
-            mail = $gmikul.getFromSub($lasttime,UserConfig[:gmikul_body])
+            mail = $gmikul.genMessage($lasttime,UserConfig[:gmikul_body])
             pushMailbox(mail)
         rescue
             announce("アカウント情報が間違っているのかもー＞＜")
@@ -137,7 +181,7 @@ Plugin.create(:mikutter_gmikul) do
     def autoUpdate
         Reserver.new(setTimer){
             count = $gmikul.haveUnread($lasttime)
-            mail = $gmikul.getFromSub($lasttime,UserConfig[:gmikul_body]) 
+            mail = $gmikul.genMessage($lasttime,UserConfig[:gmikul_body]) 
             unless mail.empty? then
                 announce(maketext(count))
                 pushMailbox(mail)
