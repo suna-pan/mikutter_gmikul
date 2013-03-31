@@ -25,7 +25,7 @@ class Gmikul
 
     #未読メールの差出人と件名を取得
     # Messageの配列を返す
-    def getFromSub(lasttime)
+    def getFromSub(lasttime,incbody)
         mail = Array.new
         @gmail.inbox.emails(:unread, :after => lasttime).map do |mes|
             begin
@@ -39,7 +39,17 @@ class Gmikul
             rescue
                 subject = ''
             end
-            mail << Message.new(:message => "#{from}#{subject}メールが届いていますよ。", :system => true)
+            text = "#{from}#{subject}メールが届いていますよ。"
+            if incbody
+                begin
+                    body = "#{mes.text_part.decoded}"
+                    text << "\n[本文]\n#{body}"
+                rescue
+                    text << "\n **本文を表示できません**"
+                end
+            end
+            mes.mark(:unread)
+            mail << Message.new(:message => text, :system => true)
         end
         return mail
     end
@@ -56,6 +66,7 @@ Plugin.create(:mikutter_gmikul) do
     settings("Gmikul") do
         adjustment("更新間隔[sec]" , :gmikul_interval, 10, 3000)
         adjustment("未読を取得する日数" , :gmikul_days, 1, 30)
+        boolean("通知タブに本文を表示する",:gmikul_body)
     end
 
     #タブを作成
@@ -88,7 +99,7 @@ Plugin.create(:mikutter_gmikul) do
         if buf.text =~ /^@gmikul/ then
             count = $gmikul.haveUnread($lasttime)
             announce(maketext(count))
-            mail = $gmikul.getFromSub($lasttime)
+            mail = $gmikul.getFromSub($lasttime,UserConfig[:gmikul_body])
             pushMailbox(mail)
             clearBox(buf)
         end
@@ -110,7 +121,7 @@ Plugin.create(:mikutter_gmikul) do
             $lasttime = DateTime.now  - UserConfig[:gmikul_days].to_i
             count = $gmikul.haveUnread($lasttime)
             announce(maketext(count))
-            mail = $gmikul.getFromSub($lasttime)
+            mail = $gmikul.getFromSub($lasttime,UserConfig[:gmikul_body])
             pushMailbox(mail)
         rescue
             announce("アカウント情報が間違っているのかもー＞＜")
@@ -126,7 +137,7 @@ Plugin.create(:mikutter_gmikul) do
     def autoUpdate
         Reserver.new(setTimer){
             count = $gmikul.haveUnread($lasttime)
-            mail = $gmikul.getFromSub($lasttime) 
+            mail = $gmikul.getFromSub($lasttime,UserConfig[:gmikul_body]) 
             unless mail.empty? then
                 announce(maketext(count))
                 pushMailbox(mail)
