@@ -83,7 +83,7 @@ class Gmikul
             #未読状態の維持
             mes.mark(:unread)
             #Messageを作成 
-            n_mail = Message.new(:message => text + @id.to_s, :system => true)
+            n_mail = Message.new(:message => text, :system => true)
             n_mail[:user] = User.new(
                                 :id     => @id,
                                 :idname => "Gmikul",
