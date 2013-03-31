@@ -188,6 +188,7 @@ Plugin.create(:mikutter_gmikul) do
         mail = $gmikul.genMessage($lasttime,UserConfig[:gmikul_body])
         announce(maketext(count)) unless ifzero && count == 0
         pushMailbox(mail)
+        changeIcon(count)
     end
 
     #テキストを生成
@@ -195,7 +196,16 @@ Plugin.create(:mikutter_gmikul) do
         return "未読メールの取得に失敗しました。" if(count < 0)
         return count == 0 ? "未読メールはありません。" : "#{count}件の未読メールがあります。"
     end
- 
+
+    #タブのアイコンを変える
+    def changeIcon(count)
+        if count == 0
+            tab(:mikutter_gmikul).set_icon File.expand_path(File.join(File.dirname(__FILE__), 'gmail.png'))
+        else
+            tab(:mikutter_gmikul).set_icon File.expand_path(File.join(File.dirname(__FILE__), 'gmail_ur.png'))
+        end
+    end
+
     #起動時
     on_boot do 
         UserConfig[:gmikul_interval] ||= 180
@@ -205,6 +215,7 @@ Plugin.create(:mikutter_gmikul) do
             $gmikul = Gmikul.new(config["gmail"]["addr"],config["gmail"]["pass"])
             $lasttime = DateTime.now  - UserConfig[:gmikul_days].to_i
             doUpdate(false)
+            tab(:mikutter_gmikul).set_icon File.expand_path(File.join(File.dirname(__FILE__), 'gmail2.png'))
         rescue
             announce("アカウント情報が間違っているのかもー＞＜")
         end
