@@ -9,6 +9,7 @@ class Gmikul
     #コンストラクタ
     def initialize(addr,pass)
         @gmail = Gmail.new(addr,pass)
+        #@mailはMessageとmessage_idのハッシュの配列
         @mail = Array.new
         @id = -10000
     end
@@ -28,11 +29,10 @@ class Gmikul
     #既に取得したものかどうかを返す
     #取得済み => true 未取得 => false
     def isAlreadyGet(message_id)
-        res = false
         @mail.each do |h|
-            res |= h.value?(message_id)
+            return true if h[:id] == message_id
         end
-        return res
+        return false
     end
 
     #メールをの差出人を返す
@@ -80,8 +80,10 @@ class Gmikul
             if incbody
                 text << (self.getBody(mes) == nil ? "\n **本文を表示できません**" : "\n[本文]\n#{self.getBody(mes)}")
             end
+            #未読状態の維持
             mes.mark(:unread)
-            n_mail = Message.new(:message => text, :system => true)
+            #Messageを作成 
+            n_mail = Message.new(:message => text + @id.to_s, :system => true)
             n_mail[:user] = User.new(
                                 :id     => @id,
                                 :idname => "Gmikul",
@@ -90,7 +92,7 @@ class Gmikul
             @mail << {post: n_mail, id: mes.message_id} 
             @id -= 1              
         end
-    
+        #Messageの配列を作成    
         mesary = Array.new
         @mail.each do |h|
             mesary << h[:post]
@@ -98,9 +100,26 @@ class Gmikul
         return mesary
     end
 
+    #既読にする
+    def doKidoku(target,lasttime)
+        target.each do |del|
+            @mail.each do |mail| 
+                if mail[:post][:user][:id] == del[:user][:id] then
+                    @gmail.inbox.emails(:unread, :after => lasttime).map do |tgt|
+                        if tgt.message_id == mail[:id]
+                            tgt.mark(:read)
+                        end
+                    end
+                    @mail.delete(mail)
+                end
+            end
+        end
+        sleep 3
+    end
+
     #ログアウト    
     def logout
-    @gmail.primary.logout
+    @gmail.logout
     end
 end
 
@@ -124,6 +143,30 @@ Plugin.create(:mikutter_gmikul) do
         Plugin.call(:update, nil, [Message.new(:message => text, :system => true)])
     end
  
+    #コマンドー
+    command(:kidoku,
+            name: "既読にする",
+            condition: Plugin::Command[:HasMessage],
+            visible: true,
+            role: :timeline
+    )do |msg|
+        doKidoku(msg)
+    end
+
+    #既読にする
+    def doKidoku(m)
+        mail = Array.new
+        m.messages.map do |msg|
+            if msg.idname != "Gmikul" 
+                announce("Gmail通知以外のツイートが選択されています。")
+                return false
+            end
+            mail << msg
+        end
+        $gmikul.doKidoku(mail,$lasttime)
+        doUpdate(true)
+    end
+    
     #投稿ボックスをくりあ
     def clearBox(buf)
         buf.text = ''
@@ -138,15 +181,13 @@ Plugin.create(:mikutter_gmikul) do
         end
     end
 
-    #投稿ボックスの中身を判定して処理
-    def gmikulInBox(buf)
-        if buf.text =~ /^@gmikul/ then
-            count = $gmikul.haveUnread($lasttime)
-            announce(maketext(count))
-            mail = $gmikul.genMessage($lasttime,UserConfig[:gmikul_body])
-            pushMailbox(mail)
-            clearBox(buf)
-        end
+    #未読の取得と通知
+    #引数 true => 0件の場合非表示 false => 0件でも表示
+    def doUpdate(ifzero)
+        count = $gmikul.haveUnread($lasttime)
+        mail = $gmikul.genMessage($lasttime,UserConfig[:gmikul_body])
+        announce(maketext(count)) unless ifzero && count == 0
+        pushMailbox(mail)
     end
 
     #テキストを生成
@@ -163,10 +204,7 @@ Plugin.create(:mikutter_gmikul) do
             config = YAML.load_file(File.join(File.dirname(__FILE__),"config.yaml"))
             $gmikul = Gmikul.new(config["gmail"]["addr"],config["gmail"]["pass"])
             $lasttime = DateTime.now  - UserConfig[:gmikul_days].to_i
-            count = $gmikul.haveUnread($lasttime)
-            announce(maketext(count))
-            mail = $gmikul.genMessage($lasttime,UserConfig[:gmikul_body])
-            pushMailbox(mail)
+            doUpdate(true)
         rescue
             announce("アカウント情報が間違っているのかもー＞＜")
         end
@@ -180,14 +218,7 @@ Plugin.create(:mikutter_gmikul) do
     #未読メールを設定した間隔で取得
     def autoUpdate
         Reserver.new(setTimer){
-            count = $gmikul.haveUnread($lasttime)
-            mail = $gmikul.genMessage($lasttime,UserConfig[:gmikul_body]) 
-            unless mail.empty? then
-                announce(maketext(count))
-                pushMailbox(mail)
-            else
-                timeline(:mailbox).clear
-            end
+            doUpdate(false)
             sleep 1
             autoUpdate
         }
@@ -197,7 +228,10 @@ Plugin.create(:mikutter_gmikul) do
     def getPostbox
         filter_gui_postbox_post do |postbox|
             buf = ObjectSpace.each_object(Gtk::PostBox).to_a.first.widget_post.buffer
-            gmikulInBox(buf)
+            if buf.text =~ /^@gmikul/ then
+                doUpdate(false)
+                clearBox(buf)        
+            end
             [postbox]
         end
     end
