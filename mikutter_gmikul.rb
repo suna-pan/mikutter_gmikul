@@ -204,7 +204,7 @@ Plugin.create(:mikutter_gmikul) do
             config = YAML.load_file(File.join(File.dirname(__FILE__),"config.yaml"))
             $gmikul = Gmikul.new(config["gmail"]["addr"],config["gmail"]["pass"])
             $lasttime = DateTime.now  - UserConfig[:gmikul_days].to_i
-            doUpdate(true)
+            doUpdate(false)
         rescue
             announce("アカウント情報が間違っているのかもー＞＜")
         end
@@ -218,7 +218,7 @@ Plugin.create(:mikutter_gmikul) do
     #未読メールを設定した間隔で取得
     def autoUpdate
         Reserver.new(setTimer){
-            doUpdate(false)
+            doUpdate(true)
             sleep 1
             autoUpdate
         }
