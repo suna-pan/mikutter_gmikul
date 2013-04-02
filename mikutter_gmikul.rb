@@ -59,12 +59,19 @@ class Gmikul
     #メールの本文を返す
     def getBody(mes)
         begin
-            body = mes.text_part.decoded
+            unless mes.text_part && mes.html_part
+                return mes.body.decoded.encode("UTF-8", mes.charset)
+            else 
+                if mes.text_part
+                    return mes.text_part.decoded
+                elsif mes.html_part
+                    return mes.html_part.decoded
+                end
+            end
         rescue
-            body = nil
+            return nil
         end
-        return body
-    end
+   end
 
     # Messageの配列を返す
     def genMessage(lasttime,incbody)
