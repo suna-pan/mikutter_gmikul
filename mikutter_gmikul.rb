@@ -215,7 +215,6 @@ Plugin.create(:mikutter_gmikul) do
             $gmikul = Gmikul.new(config["gmail"]["addr"],config["gmail"]["pass"])
             $lasttime = DateTime.now  - UserConfig[:gmikul_days].to_i
             doUpdate(false)
-            tab(:mikutter_gmikul).set_icon File.expand_path(File.join(File.dirname(__FILE__), 'gmail2.png'))
         rescue
             announce("アカウント情報が間違っているのかもー＞＜")
         end
